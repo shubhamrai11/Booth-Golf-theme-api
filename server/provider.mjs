@@ -1,4 +1,4 @@
-export async function generatePortrait({ guest, reference, outfitReference, prompt, model, size, quality, key, signal, fetchImpl = fetch }) {
+export async function generatePortrait({ guest, reference, outfitReference, prompt, model, size, quality, key, signal, timeoutMs: requestedTimeout, fetchImpl = fetch }) {
   if (!key) throw new Error('Add your OpenAI API key in Setup before switching to live AI.');
   const body = new FormData();
   body.set('model', model);
@@ -13,7 +13,7 @@ export async function generatePortrait({ guest, reference, outfitReference, prom
   body.append('image[]', new Blob([reference], { type: 'image/jpeg' }), 'golf-reference.jpg');
   if (outfitReference) body.append('image[]', new Blob([outfitReference], { type: 'image/jpeg' }), 'golf-outfit-reference.jpg');
   let response;
-  const timeoutMs = model.startsWith('gpt-image-2.5-') && ['xhigh', 'max'].includes(quality) ? 600000 : 300000;
+  const timeoutMs = requestedTimeout ?? (model.startsWith('gpt-image-2.5-') && ['xhigh', 'max'].includes(quality) ? 600000 : 300000);
   try {
     response = await fetchImpl('https://api.openai.com/v1/images/edits', {
       method: 'POST', headers: { Authorization: `Bearer ${key}` }, body,
@@ -29,7 +29,9 @@ export async function generatePortrait({ guest, reference, outfitReference, prom
     const messages = { 401: 'The API key was not accepted. Update it in Setup.', 403: 'Your OpenAI project cannot use this image model. Check model access or verification.', 429: 'The AI account has reached its rate or credit limit. Check billing and retry when ready.', 400: 'The AI provider rejected this request. Check the prompt, model access and images.' };
     throw new Error(messages[response.status] || `AI service returned ${response.status}. No automatic retry was made.`);
   }
-  const json = await response.json();
+  let json;
+  try { json = await response.json(); }
+  catch { throw new Error('The AI response ended before the image arrived. The provider may have charged. Review before retrying.'); }
   const encoded = json.data?.[0]?.b64_json;
   if (typeof encoded !== 'string' || encoded.length > 50 * 1024 * 1024) throw new Error('The provider did not return a usable image.');
   return Buffer.from(encoded, 'base64');

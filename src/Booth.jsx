@@ -35,15 +35,15 @@ export function Booth({ state, refresh, notify, goSetup, kiosk = false }) {
         canvas.width = v.videoWidth; canvas.height = v.videoHeight; canvas.getContext('2d').drawImage(v, 0, 0);
         const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.96));
         response = await api('/api/capture/webcam', { method: 'POST', body: blob });
-      } else response = await post('/api/capture');
-      if (response.waiting) { setWaiting(true); notify('Take the photo in EOS Utility or with the camera shutter. It will appear automatically.'); }
+      } else response = await post('/api/capture?requestId='+crypto.randomUUID());
+      if (response.waiting) { setWaiting(true); notify(state.cloud && state.config.cameraMode==='canon' ? 'Waiting for the Windows camera to capture.' : 'Take the photo in EOS Utility or with the camera shutter. It will appear automatically.'); }
       else setFocus(response.id);
       await refresh();
     } catch(e) { notify(e.message, true); }
     finally { if (mounted.current) { setBusy(false); setCount(null); } }
   }
   const ready = job?.status === 'complete', processing = ['queued','generating'].includes(job?.status);
-  async function action(name) { if (name === 'print' && printing) return; try { if (name === 'print') setPrinting(true); await post(`/api/sessions/${job.id}/${name}`); if (name === 'print') notify('Photo sent to the Windows print queue.'); await refresh(); } catch(e) { notify(e.message, true); } finally { setPrinting(false); } }
+  async function action(name) { if (name === 'print' && printing) return; try { if (name === 'print') setPrinting(true); const response=await post(`/api/sessions/${job.id}/${name}`); if (name === 'print') notify(response.queued ? 'Print queued for the Windows booth.' : 'Photo sent to the Windows print queue.'); await refresh(); } catch(e) { notify(e.message, true); } finally { setPrinting(false); } }
   return <>
     <div className={`booth-layout ${kiosk ? 'kiosk-layout' : ''}`}>
       <section className="capture-section">
@@ -65,7 +65,7 @@ export function Booth({ state, refresh, notify, goSetup, kiosk = false }) {
         {ready ? <div className="result-note">{job.mode === 'rehearsal' ? 'Rehearsal result · The original photo is framed; AI has not been applied.' : 'AI modified portrait'}{job.lastPrintedAt ? ' · Sent to printer' : ''}</div> : null}
       </section>
       {!kiosk ? <aside className="experience"><h2>Golf experience</h2>
-        <button className="reference-preview" onClick={goSetup} aria-label="Change golf reference in Setup"><img src={`/api/media/assets/${state.config.reference}?thumb=1`} alt="Your golf composition reference"/><span>Saved golf reference <Icon name="chevron" size={17}/></span></button>
+        <button className="reference-preview" onClick={goSetup} aria-label="Change golf reference in Setup">{state.config.reference ? <img src={`/api/media/assets/${state.config.reference}?thumb=1`} alt="Your golf composition reference"/> : <div className="camera-empty">Add your golf reference in Setup</div>}<span>Saved golf reference <Icon name="chevron" size={17}/></span></button>
         <label className="field prompt-field"><span>Generation prompt</span><textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={6}/></label>
         <div className="connection"><span>Connection</span><button onClick={goSetup}><Icon name="plug"/><span>{state.config.mode === 'rehearsal' ? 'Rehearsal mode · no AI' : state.hasKey ? 'Live AI configured' : 'Setup needed'}</span><Icon name="chevron" size={16}/></button></div>
         <Button onClick={async () => { try { await post('/api/settings', { prompt }); await refresh(); notify('Golf experience saved.'); } catch(e) { notify(e.message, true); } }}>Save experience</Button>

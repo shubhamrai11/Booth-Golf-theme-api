@@ -6,7 +6,7 @@ export function useGuestSession(state, refresh) {
   const [requestId, setRequestId] = useState(() => sessionStorage.getItem(storageKey) || '');
   const [phase, setPhase] = useState(() => sessionStorage.getItem(storageKey) ? 'waiting' : 'welcome');
   const [count, setCount] = useState(null), [error, setError] = useState('');
-  const [scene, setScene] = useState('classic'), [working, setWorking] = useState(false), [notice, setNotice] = useState('');
+  const [scene, setScene] = useState('classic'), [working, setWorking] = useState(false), [printCommand,setPrintCommand]=useState(''), [notice, setNotice] = useState('');
   const video = useRef(null), stream = useRef(null), operation = useRef(0), locked = useRef(false), seenJob = useRef('');
   const job = state.jobs.find(j => requestId && j.captureRequestId === requestId);
   function stopCamera() { stream.current?.getTracks().forEach(t => t.stop()); stream.current = null; }
@@ -20,6 +20,8 @@ export function useGuestSession(state, refresh) {
     const timer = setTimeout(() => { setError('No photo has arrived yet. Ask the booth operator to check the camera.'); setPhase('error'); }, 180000);
     return () => clearTimeout(timer);
   }, [phase, job]);
+  useEffect(()=>{if(!printCommand)return;const command=state.commands?.find(c=>c.id===printCommand);if(command?.status==='complete')setNotice('Sent to the Windows print queue. Please collect your photo.');else if(command?.status==='failed') {setNotice('');setError(command.error || 'Printing did not confirm. Ask the operator to check the printer.');}},[state.commands,printCommand]);
+  useEffect(()=>{const command=state.commands?.find(c=>c.target===requestId && c.kind==='capture');if(!job && command?.status==='failed'){setError(command.error || 'The camera could not complete this capture.');setPhase('error');}},[state.commands,requestId,job]);
   async function reset() {
     if (working) return;
     operation.current++; stopCamera(); locked.current = false;
@@ -73,9 +75,9 @@ export function useGuestSession(state, refresh) {
     if (locked.current || !job) return false;
     locked.current = true; setWorking(true); setError(''); setNotice('');
     try {
-      await post(`/api/sessions/${job.id}/${name}`);
+      const response=await post(`/api/sessions/${job.id}/${name}`);
       if (name === 'delete') { seenJob.current = ''; setRequestId(''); sessionStorage.removeItem(storageKey); setPhase('welcome'); }
-      if (name === 'print') setNotice('Sent to the printer. Please collect your photo.');
+      if (name === 'print') { setPrintCommand(response.commandId || ''); setNotice(response.queued ? 'Print queued. Waiting for the Windows booth…' : 'Sent to the printer. Please collect your photo.'); }
       if (name === 'generate' || name === 'retry') setPhase('processing');
       await refresh(); return true;
     } catch(e) { setError(e.message); return false; }

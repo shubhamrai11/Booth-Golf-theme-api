@@ -48,6 +48,10 @@ export function createServers(booth) {
       if (route === '/api/bootstrap' && req.method === 'GET') return json(res,200,{ token:csrf });
       if (route === '/api/state' && req.method === 'GET') return json(res,200,{ ...booth.view(), addresses:lanAddresses(), publicPort, jobs:booth.view().jobs.map(j => ({ ...j, downloadUrl:j.status === 'complete' ? downloadUrl(j) : '' })) });
       if (route === '/api/settings' && req.method === 'POST') return json(res,200,booth.configure(await readJson(req)));
+      if (route === '/api/cloud-connection' && req.method === 'POST') {
+        if (!booth.relay) throw new Error('The Windows cloud helper is not available.');
+        return json(res,200,await booth.relay.configure(await readJson(req)));
+      }
       if (route === '/api/key' && req.method === 'POST') {
         const { key } = await readJson(req);
         if (typeof key !== 'string' || key.length > 1000 || /\s/.test(key)) throw new Error('Enter a valid API key without spaces.');

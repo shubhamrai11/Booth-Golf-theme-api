@@ -31,7 +31,7 @@ function Welcome({ guest, disabled, rehearsal }) {
     <div className="guest-start-area"><button className="guest-primary guest-start" onClick={guest.start} disabled={disabled}><GuestIcon name="camera" size={34}/>CLICK TO START</button><p className="guest-mode">{rehearsal ? 'Rehearsal mode · No AI transformation' : 'Your photo. Your golf moment.'}</p></div>
   </div>;
 }
-function Capture({ guest, config, paused }) {
+function Capture({ guest, config, paused, canRetry }) {
   const { job, phase, count, error } = guest;
   const failed = job?.status === 'failed' || (!job && phase === 'error');
   const processing = ['queued', 'generating'].includes(job?.status);
@@ -50,13 +50,13 @@ function Capture({ guest, config, paused }) {
     </div>
     <div className="guest-generation" aria-live="polite"><h2>{status}</h2>
       {processing || phase === 'sending' || waiting ? <><div className="guest-sparkle"><GuestIcon name="sparkle" size={46}/></div><div className="guest-progress" role="progressbar" aria-label={status}><span/></div></> : null}
-      {failed ? <><p className="guest-error" role="alert">{job?.error || error}</p><div className="guest-recovery">{job?.status === 'failed' ? <button className="guest-primary" disabled={guest.working} onClick={() => guest.action('retry')}>Retry generation</button> : null}<button className="guest-secondary" onClick={guest.reset}>Back to start</button></div></> : captured ? <><p>Choose a clear photo with your head upright,<br/>eyes relaxed and both shoulders visible.</p><div className="guest-recovery"><button className="guest-primary" disabled={guest.working} onClick={() => guest.action('generate')}>Use this photo</button><button className="guest-secondary" disabled={guest.working} onClick={guest.retake}>Retake photo</button></div></> : <p>{processing ? paused && job.status === 'queued' ? 'The operator will continue shortly.' : job.mode === 'rehearsal' ? 'Testing the print layout. No AI transformation.' : 'This can take a little while.\nPlease stay on this screen.' : waiting ? 'Take the photo using the camera shutter or EOS Utility.' : 'Keep your whole head and shoulders in view.\nFor best results, place the camera at eye level.'}</p>}
+      {failed ? <><p className="guest-error" role="alert">{job?.error || error}{!canRetry && job?.status==='failed' ? ' Ask the operator to review this request.' : ''}</p><div className="guest-recovery">{job?.status === 'failed' && canRetry ? <button className="guest-primary" disabled={guest.working} onClick={() => {if(window.confirm('The earlier request may have been charged. Retry after reviewing the AI account?'))guest.action('retry');}}>Retry generation</button> : null}<button className="guest-secondary" onClick={guest.reset}>Back to start</button></div></> : captured ? <><p>Choose a clear photo with your head upright,<br/>eyes relaxed and both shoulders visible.</p><div className="guest-recovery"><button className="guest-primary" disabled={guest.working} onClick={() => guest.action('generate')}>Use this photo</button><button className="guest-secondary" disabled={guest.working} onClick={guest.retake}>Retake photo</button></div></> : <p>{processing ? paused && job.status === 'queued' ? 'The operator will continue shortly.' : job.mode === 'rehearsal' ? 'Testing the print layout. No AI transformation.' : 'This can take a little while.\nPlease stay on this screen.' : waiting ? 'Take the photo using the camera shutter or EOS Utility.' : 'Keep your whole head and shoulders in view.\nFor best results, place the camera at eye level.'}</p>}
       {error && job && !failed ? <p className="guest-error" role="alert">{error}</p> : null}
       {(phase === 'capture' || waiting) && !job ? <button className="guest-link" onClick={guest.reset}>Cancel</button> : null}
     </div>
   </div>;
 }
-function Result({ guest }) {
+function Result({ guest, cloud }) {
   const [dialog, setDialog] = useState(null);
   const { job, working, error, notice } = guest;
   return <div className="guest-result">
@@ -66,7 +66,7 @@ function Result({ guest }) {
     <div className="guest-result-actions"><button className="guest-secondary" onClick={() => { guest.clearMessage(); setDialog('delete'); }} disabled={working}><GuestIcon name="trash" size={31}/><span><strong>DELETE</strong><small>Try again</small></span></button><button className="guest-primary" onClick={() => guest.action('print')} disabled={working}><GuestIcon name="print" size={33}/><span><strong>{working ? 'SENDING…' : 'PRINT'}</strong><small>Get your photo</small></span></button></div>
     <div className="guest-result-links"><button className="guest-link" disabled={working} onClick={guest.reset}>Next guest <GuestIcon name="arrow" size={18}/></button>{job.downloadUrl ? <button className="guest-link" onClick={() => { guest.clearMessage(); setDialog('qr'); }}><GuestIcon name="qr" size={21}/>Scan to download</button> : null}</div>
     {notice || error ? <p className={`guest-result-notice ${error ? 'has-error' : ''}`} role={error ? 'alert' : 'status'}>{error || notice}</p> : null}
-    {dialog === 'delete' ? <GuestDialog title="Delete this photo?" onClose={() => !working && setDialog(null)}><p>This removes your photo and its download link. You can then take a new photo.</p>{error ? <p className="guest-error" role="alert">{error}</p> : null}<button className="guest-danger" disabled={working} onClick={async () => { if (await guest.action('delete')) setDialog(null); }}>Delete and try again</button><button className="guest-secondary" disabled={working} onClick={() => setDialog(null)}>Keep my photo</button></GuestDialog> : dialog === 'qr' ? <GuestDialog title="Keep your golf photo" onClose={() => setDialog(null)}><img className="guest-qr" src={`/api/qr/${job.id}`} alt="Scan this QR code to download your photo"/><p>Scan with your phone camera.<br/>Ask the operator for the booth Wi-Fi.</p><button className="guest-primary" onClick={() => setDialog(null)}>Done</button></GuestDialog> : null}
+    {dialog === 'delete' ? <GuestDialog title="Delete this photo?" onClose={() => !working && setDialog(null)}><p>This removes your photo and its download link. You can then take a new photo.</p>{error ? <p className="guest-error" role="alert">{error}</p> : null}<button className="guest-danger" disabled={working} onClick={async () => { if (await guest.action('delete')) setDialog(null); }}>Delete and try again</button><button className="guest-secondary" disabled={working} onClick={() => setDialog(null)}>Keep my photo</button></GuestDialog> : dialog === 'qr' ? <GuestDialog title="Keep your golf photo" onClose={() => setDialog(null)}><img className="guest-qr" src={`/api/qr/${job.id}`} alt="Scan this QR code to download your photo"/><p>Scan with your phone camera.<br/>{cloud ? 'Download using Wi-Fi or mobile data.' : 'Ask the operator for the booth Wi-Fi.'}</p><button className="guest-primary" onClick={() => setDialog(null)}>Done</button></GuestDialog> : null}
   </div>;
 }
 export function GuestKiosk({ state, refresh, offline }) {
@@ -75,6 +75,6 @@ export function GuestKiosk({ state, refresh, offline }) {
   return <main className={`guest-shell guest-${screen}-shell`}><div className={`guest-experience ${screen}`}>
     {screen === 'welcome' ? <header className="guest-welcome-header"><div className="guest-logo">YOUR LOGO</div><a className="guest-settings" href="/?view=setup&from=kiosk" aria-label="Admin settings"><Icon name="settings" size={20}/>Settings</a></header> : <div className="guest-logo">YOUR LOGO</div>}
     {offline ? <div className="guest-offline" role="alert">Connection lost. Reconnecting to the booth…</div> : null}
-    {screen === 'welcome' ? <Welcome guest={guest} disabled={offline || state.capturing} rehearsal={state.config.mode === 'rehearsal'}/> : screen === 'result' ? <Result key={guest.job.id} guest={guest}/> : <Capture guest={guest} config={state.config} paused={state.paused}/>}
+    {screen === 'welcome' ? <Welcome guest={guest} disabled={offline || state.capturing} rehearsal={state.config.mode === 'rehearsal'}/> : screen === 'result' ? <Result key={guest.job.id} guest={guest} cloud={state.cloud}/> : <Capture guest={guest} config={state.config} paused={state.paused} canRetry={!state.cloud || state.role==='admin'}/>}
   </div></main>;
 }

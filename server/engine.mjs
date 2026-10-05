@@ -20,8 +20,9 @@ export class Booth extends EventEmitter {
     this.state.config = { ...defaults, ...this.state.config, watchEnabled: false };
     this.state.jobs.forEach(job => { if (job.status === 'generating') { job.status = 'failed'; job.error = 'The app closed during generation. Check your AI account before retrying; the previous request may have been charged.'; } });
     for (const name of ['golf-reference.jpg', 'golf-outfit-reference.jpg']) {
-      if (!existsSync(path.join(root, 'assets', name))) copyFileSync(path.join(appRoot, 'assets', name), path.join(root, 'assets', name));
+      if (!existsSync(path.join(root, 'assets', name)) && existsSync(path.join(appRoot,'assets',name))) copyFileSync(path.join(appRoot, 'assets', name), path.join(root, 'assets', name));
     }
+    for (const key of ['reference','outfitReference']) if (!existsSync(path.join(root,'assets',this.state.config[key]))) this.state.config[key]='';
     this.persist();
   }
   persist() {
@@ -35,7 +36,7 @@ export class Booth extends EventEmitter {
   }
   getJob(id) { const job = this.state.jobs.find(j => j.id === id); if (!job) throw new Error('Session not found.'); return job; }
   view() {
-    return { config: this.state.config, hasKey: !!this.key, paused: this.state.paused, capturing: this.capturing, watchError: this.watchError,
+    return { config: this.state.config, hasKey: !!this.key, paused: this.state.paused, capturing: this.capturing, watchError: this.watchError, helper:!!this.helper, cloudConnection: this.relay?.view(),
       jobs: this.state.jobs.slice(-200).reverse().map(({ snapshot, ...j }) => j) };
   }
   configure(input) {
@@ -85,7 +86,7 @@ export class Booth extends EventEmitter {
     writeFileSync(this.file('originals', id + '.jpg'), normalized);
     const job = { id, token, scene: options.scene, captureRequestId: options.requestId, status: 'captured', createdAt: new Date().toISOString(), error: '', expiresAt: null };
     this.state.jobs.push(job); this.persist();
-    if (this.state.config.autoGenerate && !options.review) this.enqueue(id);
+    if (this.state.config.autoGenerate && !options.review && !this.relay?.config.enabled) this.enqueue(id);
     return job;
   }
   async captureCanon(input = {}) {
@@ -107,11 +108,12 @@ export class Booth extends EventEmitter {
     } finally { if (existsSync(target)) unlinkSync(target); this.capturing = false; this.emit('change'); }
   }
   enqueue(id) {
+    if (this.helper || this.relay?.config.enabled) throw new Error('Use the Vercel booth screen to generate while using the cloud helper.');
     const job = this.getJob(id);
     if (!['captured','failed'].includes(job.status)) throw new Error('This session is already queued or finished.');
     if (this.state.jobs.filter(j => ['queued','generating'].includes(j.status)).length >= 20) throw new Error('The queue is full. Let the current guests finish first.');
     const config = { ...this.state.config };
-    if (!config.prompt || !config.reference) throw new Error('Save a golf reference and prompt first.');
+    if (config.mode === 'live' && (!config.prompt || !config.reference)) throw new Error('Save a golf reference and prompt first.');
     config.prompt = scenePrompt(config.prompt, job.scene);
     if (config.mode === 'live' && !this.key) throw new Error('An API key is required for live AI.');
     job.snapshot = config; job.status = 'queued'; job.error = ''; job.mode = config.mode; this.persist();
@@ -124,7 +126,7 @@ export class Booth extends EventEmitter {
     const config = job.snapshot;
     try {
       const guest = readFileSync(this.file('originals', job.id + '.jpg'));
-      const reference = readFileSync(this.file('assets', config.reference));
+      const reference = config.reference ? readFileSync(this.file('assets', config.reference)) : undefined;
       const outfitReference = config.outfitReference ? readFileSync(this.file('assets', config.outfitReference)) : undefined;
       this.controller = new AbortController();
       const result = config.mode === 'rehearsal' ? guest : await this.generate({ guest, reference, outfitReference, prompt: config.prompt, model: config.model, size: config.size, quality: config.quality, key: this.key, signal: this.controller.signal });
@@ -186,5 +188,5 @@ export class Booth extends EventEmitter {
       if (expires < new Date().toISOString() && !['generating','queued'].includes(job.status)) this.remove(job.id);
     }
   }
-  stop() { this.stopped = true; clearInterval(this.timer); clearInterval(this.cleanup); this.controller?.abort(); }
+  stop() { this.stopped = true; clearInterval(this.timer); clearInterval(this.cleanup); this.controller?.abort(); this.relay?.stop(); }
 }

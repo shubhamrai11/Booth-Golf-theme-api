@@ -8,4 +8,6 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Print bridge build failed.' }
   & $compiler /nologo /platform:x64 /target:winexe /r:System.Windows.Forms.dll '/out:Fairway Studio.exe' native\Launcher.cs
   if ($LASTEXITCODE -ne 0) { throw 'Launcher build failed.' }
+  & $compiler /nologo /platform:x64 /target:winexe /r:System.Windows.Forms.dll '/out:Fairway Cloud Helper.exe' native\CloudHelperLauncher.cs
+  if ($LASTEXITCODE -ne 0) { throw 'Cloud helper launcher build failed.' }
 } finally { Pop-Location }

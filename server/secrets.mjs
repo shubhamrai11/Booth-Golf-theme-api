@@ -38,3 +38,13 @@ export async function saveKey(root, value) {
   if (process.platform !== 'win32') throw new Error('Use OPENAI_API_KEY on non-Windows systems.');
   writeFileSync(file, await crypt(value, true), { mode: 0o600 });
 }
+export async function loadDeviceToken(root) {
+  const file=path.join(root,'cloud-device.dpapi');
+  return existsSync(file) ? crypt(readFileSync(file,'utf8'),false).catch(()=>'') : '';
+}
+export async function saveDeviceToken(root,value) {
+  const file=path.join(root,'cloud-device.dpapi');
+  if (!value) { if (existsSync(file)) unlinkSync(file); return; }
+  if (process.platform!=='win32') throw new Error('The Windows helper requires Windows credential storage.');
+  writeFileSync(file,await crypt(value,true),{mode:0o600});
+}

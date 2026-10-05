@@ -7,10 +7,13 @@ import { Booth } from '../server/engine.mjs';
 import { createServers } from '../server/http.mjs';
 import { generatePortrait } from '../server/provider.mjs';
 import { randomUUID } from 'node:crypto';
-const appRoot = process.cwd();
 const testRoot = path.resolve('../../work/test-runs');
 mkdirSync(testRoot,{recursive:true});
 const photo = await sharp({create:{width:600,height:900,channels:3,background:'#bfd5c7'}}).jpeg().toBuffer();
+// Synthetic references keep tests independent of private event artwork.
+const appRoot=path.join(testRoot,'synthetic-app');
+mkdirSync(path.join(appRoot,'assets'),{recursive:true});
+for (const name of ['golf-reference.jpg','golf-outfit-reference.jpg']) writeFileSync(path.join(appRoot,'assets',name),photo);
 function boothFor(t,extra={}) {
   const root=mkdtempSync(path.join(testRoot,'booth-'));
   const booth=new Booth({root,appRoot,...extra});

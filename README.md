@@ -1,79 +1,60 @@
 # Fairway Studio
 
-Windows photo-booth software for a golf event. Capture a guest with a Canon camera or webcam, generate an AI golf portrait using saved scene and outfit references, apply event branding, and print or display the result with an individual QR download.
+Golf photo booth for Windows with a Vercel website and a Windows camera/printer helper. Guest flow: **Capture → Review → Generate → Display → Print / QR download**. Guests have no upload option.
 
-## Current build
+## Vercel deployment
 
-This application runs on the Windows booth PC. The browser interface depends on the local Node server; it is not a standalone static website.
+Follow [VERCEL-SETUP.md](VERCEL-SETUP.md). Vercel hosts the interface and authenticated server API; Supabase stores event settings, jobs, Windows commands and private photos. OpenAI image editing runs on the server. The Windows app receives commands over outbound HTTPS for Canon capture and printing.
 
-- Three-stage guest experience: welcome, capture/review, and finished portrait.
-- Settings shortcut on welcome for camera and printer setup, with save-and-return navigation.
-- Canon USB capture using a separately licensed Canon EDSDK, EOS Utility folder capture, or webcam capture.
-- OpenAI image editing with the guest first, scene reference second, and optional outfit reference third.
-- Sunburst / Max defaults, an editable event prompt, and no automatic paid retries.
-- Placeholder branding, 1200 × 1800 output, Windows printing, and a separate large-screen display.
-- Guest download links with configurable retention.
+New installations start in **Rehearsal**, with no AI charges. Upload references in Setup before enabling Live AI. Sunburst / Max / 1536 × 2304 remain the defaults; the final branded print is 1200 × 1800. The guest supplies identity; the main and optional outfit references guide the scene and clothing.
 
-Physical Canon camera and printer operation still need validation on the event equipment. Facial likeness and anatomy require review before printing.
+Admin login protects settings and paid retries. **Start guest mode & lock settings** authorizes this booth browser for 12 hours, then locks admin controls. Public guests receive only an unguessable, expiring link to their finished portrait.
 
-## Develop on Windows
+Generation approvals and hardware commands are saved before execution. Database claims allow one active generation per booth. Failed/interrupted AI jobs are never automatically retried. Review provider billing before an explicit retry. The Windows helper keeps a command ledger: a lost upload or acknowledgment cannot repeat a shutter release or print. A restart during an uncertain hardware action reports failure for operator review.
 
-Requirements: 64-bit Windows 10/11, Node.js 22 or newer, npm, and Windows PowerShell. Install the Windows driver for your event printer. Direct Canon capture additionally needs Canon's licensed 64-bit EDSDK; those files are not distributed here.
+The queue advances while a booth screen polls or the Windows helper sends heartbeats. If all disconnect, queued jobs wait until one reconnects. Expired links stop working immediately; physical photo deletion resumes during polling. Reference assets are retained for queued snapshots. Use one Supabase project per event.
+
+## Windows camera and printer
+
+Requirements: 64-bit Windows 10/11, Node.js 22+, npm, PowerShell and the printer's Windows driver. Direct Canon capture requires your licensed 64-bit Canon EDSDK; it is not distributed here.
 
 ```powershell
 npm ci
-powershell -NoProfile -File scripts/build-native.ps1
-npm run build
-```
-
-### Add your private reference photographs
-
-The source repository excludes personal reference photographs. Before the first run, copy your approved JPEG templates into the `assets` directory with these exact names:
-
-```text
-assets/golf-reference.jpg
-assets/golf-outfit-reference.jpg
-```
-
-The first image guides the setting and pose. The second guides an alternative clothing cut. Both are ignored by Git. This version requires both bundled files at startup; after startup, the optional outfit reference can be removed in Setup. Replace either through Setup as needed. Photos uploaded in Setup remain in the local `data` directory.
-
-```powershell
-npm test
+npm run build:windows
 npm start
 ```
 
-Open:
+Open `http://127.0.0.1:4310/?view=setup`. Configure the Canon SDK or EOS Utility folder and printer; save settings. Under **Connect this Windows booth**, enter the Vercel address and the same `BOOTH_DEVICE_TOKEN` saved on Vercel. Enable it and keep the app running. Device credentials use Windows user encryption.
 
-| Page | Local address |
+When the cloud helper is enabled, generate from the cloud screen. Local capture does not automatically generate additional copies. Folder monitoring must be enabled again after a restart; existing photos are ignored. Direct Canon capture has no live preview and shows the photo after capture.
+
+The app also operates locally with the helper disabled. Upload references in Setup and save a local API key there, use `OPENAI_API_KEY` in the local environment, or use the ignored `api-key.local.mjs`. Rehearsal works without references. Optional preloaded personal templates in `assets/golf-reference.jpg` and `assets/golf-outfit-reference.jpg` remain excluded from Git.
+
+| Screen | Route |
 | --- | --- |
-| Guest welcome and capture | http://127.0.0.1:4310/kiosk |
-| Camera, printer and event setup | http://127.0.0.1:4310/?view=setup&from=kiosk |
-| Operator sessions | http://127.0.0.1:4310/ |
-| Large-screen display | http://127.0.0.1:4310/display |
+| Guest capture | `/kiosk` |
+| Admin setup | `/?view=setup` |
+| Operator sessions | `/` |
+| Large screen | `/display` |
+| Individual download | `/p/<token>` |
 
-Start in Rehearsal mode, which makes no paid AI request. For live generation, enter an API key locally in Setup, provide `OPENAI_API_KEY` in the server environment, or copy `api-key.example.mjs` to the ignored `api-key.local.mjs` file. Keep the key on the server, never in React source or a `VITE_` variable.
+Locally, operator pages use port 4310; guest download links use 4311 and require booth Wi-Fi or configured guest-only HTTPS forwarding. Cloud QR downloads work over mobile data or Wi-Fi. Do not expose local operator port 4310 to the internet.
 
-`npm run dev` starts the development interface with an API proxy to the separately running local server. The portable Windows package is built separately and includes a Node runtime; those generated binaries are not source files.
+## Development and verification
 
-## Publishing and hosting
+```powershell
+npm test
+npm run build
+```
 
-Publishing this repository to GitHub stores the source code. It does not start the Node server or connect an internet browser to the booth hardware.
+Tests use synthetic images and a mock AI provider. The schema runs in local PostgreSQL via PGlite to verify queue claims, leases, grants and command expiry. Tests do not spend API credits or use real hardware.
 
-[GitHub Pages is a static hosting service](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages). Deploying only `dist` there will not provide the `/api` routes, AI queue, photo storage, Canon capture, or printing required by this application. The current code is not configured for public hosting.
+`npm run build:web` builds the Vercel frontend; Vercel bundles `api/index.js` and its cloud dependencies separately. `npm run dev` uses the local API proxy; run `npm start` separately. Native executables and portable runtimes are built separately and ignored by Git.
 
-For the event booth, keep the Windows service beside the camera and printer. A hosted interface would need authenticated pairing with that service and a secure way to relay capture and print jobs. Alternatively, a service for remote guests using their own cameras needs a hosted backend, protected operator settings, guest-scoped sessions, persistent photo storage, a durable image-generation queue, and usage controls. Those hosting changes are not implemented in this build.
+Actual Vercel/Supabase operation, Canon capture, physical print quality and live OpenAI generation require an end-to-end test after account configuration. Review facial likeness and anatomy before printing.
 
-The existing operator service deliberately accepts only local requests. Do not remove its host/origin checks or expose operator port 4310 to the internet as a deployment shortcut. Guest port 4311 exposes token-scoped finished-photo downloads; public HTTPS download hosting is a separate configuration step.
+## Private files
 
-## Source and private files
+Do not commit real environment values, `api-key.local.mjs`, encrypted credentials, Canon SDK binaries or `data/`. Data includes photos, settings, guest tokens and the local command ledger. Never use `VITE_` for server secrets. The example environment file contains names only.
 
-Tracked source includes `src`, `server`, `shared`, `tests`, native C# source, build scripts, and the generic golf interface artwork in `public/assets`.
-
-The following remain local and must not be committed:
-
-- `api-key.local.mjs`, environment files, and encrypted key files.
-- `data/`, including captures, generated portraits, event configuration, and guest tokens.
-- The personal reference JPEGs in `assets/`.
-- `node_modules/`, generated builds, runtime binaries, and portable ZIP packages.
-
-See [START-HERE.txt](START-HERE.txt) for detailed event operation and hardware setup.
+See [START-HERE.txt](START-HERE.txt) for additional local hardware instructions.
