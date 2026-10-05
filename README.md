@@ -53,6 +53,15 @@ Tests use synthetic images and a mock AI provider. The schema runs in local Post
 
 Actual Vercel/Supabase operation, Canon capture, physical print quality and live OpenAI generation require an end-to-end test after account configuration. Review facial likeness and anatomy before printing.
 
+## Automatic commits for completed tasks
+
+[AGENTS.md](AGENTS.md) instructs Codex to commit each completed change after the
+appropriate checks pass, without another confirmation. It preserves unrelated
+work and excludes private credentials, guest photos and generated files. This
+is a completion policy for coding assistants; it does not commit every file
+save or install a background service. GitHub publishing follows the current
+task's authorization.
+
 ## Private files
 
 Do not commit real environment values, `api-key.local.mjs`, encrypted credentials, Canon SDK binaries or `data/`. Data includes photos, settings, guest tokens and the local command ledger. Never use `VITE_` for server secrets. The example environment file contains names only.
