@@ -3,12 +3,9 @@
   "framework": "vite",
   "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
-  "functions": { "api/index.js": { "maxDuration": 300 } },
+  "functions": { "api/index.js": { "maxDuration": 300, "includeFiles": "public/assets/golf-scenes.png" } },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api?route=/api/:path*" },
-    { "source": "/p/:token", "destination": "/api?route=/p/:token" },
-    { "source": "/photo/:token", "destination": "/api?route=/photo/:token" },
-    { "source": "/download/:token", "destination": "/api?route=/download/:token" },
     { "source": "/kiosk", "destination": "/index.html" },
     { "source": "/display", "destination": "/index.html" }
   ],
@@ -16,6 +13,6 @@
     { "key": "Referrer-Policy", "value": "no-referrer" },
     { "key": "X-Content-Type-Options", "value": "nosniff" },
     { "key": "X-Frame-Options", "value": "DENY" },
-    { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" }
+    { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self' blob:; connect-src 'self' http://127.0.0.1:4314 http://localhost:4314; frame-ancestors 'none'; base-uri 'self'" }
   ] }]
 }

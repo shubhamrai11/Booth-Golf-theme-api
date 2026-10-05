@@ -1,36 +1,28 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api } from './api';
-import { Booth } from './Booth';
-import { Setup } from './Setup';
-import { Sessions } from './Sessions';
-import { Display } from './Display';
 import { GuestKiosk } from './GuestKiosk';
-import { Icon } from './ui';
-import { CloudAccess } from './CloudAccess';
-import { WindowsHelper } from './WindowsHelper';
+import { TemporarySettings } from './TemporarySettings';
+import { TemporaryDisplay } from './TemporaryDisplay';
 import { FullscreenButton } from './FullscreenButton';
+import { Icon, Button } from './ui';
+import { connected, getInfo, getPresets, helperJson, isLocal } from './temporary-api';
 import './styles.css';
 import './responsive.css';
-const initialParams = new URLSearchParams(location.search);
-const openedFromKiosk = initialParams.get('from') === 'kiosk';
-function App() {
-  const [state,setState] = useState(null), [tab,setTab] = useState(() => initialParams.get('view') === 'setup' ? 'Setup' : 'Booth'), [toast,setToast] = useState(null), [offline,setOffline] = useState(false);
-  const [attention,setAttention]=useState(null);
-  const refresh=useCallback(async()=>{try {const view=location.pathname==='/kiosk'?'kiosk':location.pathname==='/display'?'display':'operator';const data=await api('/api/state?view='+view);setState(data);setAttention(null);setOffline(false);return data;}catch(e){if(e.data?.cloud && (e.status===401 || e.status===503)){setState(null);setAttention(e.data);}throw e;}},[]);
-  const notify=useCallback((message,error=false)=>setToast({message,error,at:Date.now()}),[]);
-  useEffect(()=>{let canceled=false;let timer; async function poll(){try{if(!canceled)await refresh();}catch{if(!canceled)setOffline(true);}if(!canceled)timer=setTimeout(poll,1500);}poll();return()=>{canceled=true;clearTimeout(timer);};},[refresh]);
-  useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(null),toast.error?15000:6500);return()=>clearTimeout(t);},[toast]);
-  if(attention)return <CloudAccess attention={attention} refresh={refresh}/>;
-  if(!state)return <div className="boot"><div className="boot-tools"><FullscreenButton/></div><Icon name="flag" size={44}/><h1>Fairway Studio</h1><p>{offline?'The booth cannot connect. Check the server connection and refresh.':'Preparing your studio…'}</p></div>;
-  if(state.helper)return <><WindowsHelper state={state} refresh={refresh} notify={notify}/>{toast?<div className={`toast ${toast.error?'error':''}`} role={toast.error?'alert':'status'}><span>{toast.message}</span><button onClick={()=>setToast(null)} aria-label="Dismiss notification">×</button></div>:null}</>;
-  if(location.pathname==='/display')return <Display state={state}/>;
-  if(location.pathname==='/kiosk')return <GuestKiosk state={state} refresh={refresh} offline={offline}/>;
-  return <><header className="app-header"><a className="brand" href="/"><Icon name="flag" size={30}/>Fairway Studio</a><nav aria-label="Main navigation">{['Booth','Sessions','Setup'].map(t=><button key={t} aria-current={tab===t?'page':undefined} className={tab===t?'selected':''} onClick={()=>setTab(t)}>{t}</button>)}</nav><div className="operator-screen-links"><a className="button secondary header-display" aria-label={openedFromKiosk ? 'Back to welcome' : 'Guest screen'} href="/kiosk" target={openedFromKiosk ? undefined : '_blank'} rel="noreferrer"><Icon name="camera" size={19}/><span className="link-label">{openedFromKiosk ? 'Back to welcome' : 'Guest screen'}</span></a><a className="button secondary header-display" aria-label="Open display" href="/display" target="_blank" rel="noreferrer"><Icon name="external" size={19}/><span className="link-label">Open display</span></a><FullscreenButton/></div></header>
-    {offline?<div className="offline-banner" role="alert">Connection to the booth was lost. Reconnecting…</div>:null}
-    <main className="app-main">{tab==='Booth'?<><Booth state={state} refresh={refresh} notify={notify} goSetup={()=>setTab('Setup')}/><Sessions state={state} refresh={refresh} notify={notify} compact onViewAll={()=>setTab('Sessions')}/></>:tab==='Sessions'?<Sessions state={state} refresh={refresh} notify={notify}/>:<Setup state={state} refresh={refresh} notify={notify} returnToKiosk={openedFromKiosk}/>}</main>
-    {state.watchError?<div className="watch-error" role="status">{state.watchError}</div>:null}
-    {toast?<div className={`toast ${toast.error?'error':''}`} role={toast.error?'alert':'status'}><span>{toast.message}</span><button onClick={()=>setToast(null)} aria-label="Dismiss notification">×</button></div>:null}
-  </>;
+import './temporary.css';
+const preferencesKey='fairway-preferences-v4';
+const params=new URLSearchParams(location.search);
+function App(){
+  const [state,setState]=useState(null),[error,setError]=useState(''),[assets,setAssets]=useState({}),[settings,setSettings]=useState(params.get('view')==='setup'),[pair,setPair]=useState(null),[paired,setPaired]=useState(false);
+  useEffect(()=>{let live=true;getInfo().then(async data=>{let saved={};if(!isLocal)try{saved=JSON.parse(localStorage.getItem(preferencesKey)||'{}');}catch{}if(live)setState({...data,config:{...data.config,...saved}});if(connected()){const presets=await getPresets(isLocal?data:await helperJson('/api/temporary/info'));if(live)setAssets(presets);}}).catch(e=>{if(live)setError(e.message);});if(isLocal&&params.get('connect'))helperJson('/api/temporary/pair/details',{id:params.get('connect')}).then(p=>{if(live)setPair(p);}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[]);
+  useEffect(()=>{const pop=()=>setSettings(new URLSearchParams(location.search).get('view')==='setup');window.addEventListener('popstate',pop);return()=>window.removeEventListener('popstate',pop);},[]);
+  useEffect(()=>{window.scrollTo(0,0);},[settings]);
+  function navigateSetup(value){history.pushState({},'',value?'/?view=setup&from=kiosk':'/kiosk');setSettings(value);}
+  async function save(config,equipment){if(isLocal){const data=await helperJson('/api/temporary/settings',{...config,...equipment});setState(data);}else{localStorage.setItem(preferencesKey,JSON.stringify(config));setState(s=>({...s,config}));}}
+  if(pair)return <div className="temporary-pair"><Icon name="plug" size={36}/><h1>{paired?'Website connected.':'Connect this website?'}</h1><p>The website below will be able to capture from this camera, send prints, and request paid AI images while this helper is running.</p><p className="temporary-pair-url">{pair.origin}</p>{paired?<p role="status">Return to the website. Keep the Windows helper running during the event.</p>:<Button onClick={async()=>{try{await helperJson('/api/temporary/pair/approve',{id:params.get('connect')});setPaired(true);}catch(e){setError(e.message);}}}>Allow connection</Button>}<Button secondary onClick={()=>{history.replaceState({},'','/?view=setup');setPair(null);setSettings(true);}}>Open settings</Button>{error?<p role="alert">{error}</p>:null}</div>;
+  if(!state)return <div className="boot"><div className="boot-tools"><FullscreenButton/></div><Icon name="flag" size={44}/><h1>Fairway Studio</h1><p role={error?'alert':'status'}>{error||'Preparing your studio…'}</p></div>;
+  const view={...state,assets,openSettings:()=>navigateSetup(true),jobs:[]};
+  if(location.pathname==='/display')return <TemporaryDisplay config={state.config}/>;
+  if(settings)return <TemporarySettings state={view} save={save} back={()=>navigateSetup(false)} setAssets={setAssets}/>;
+  return <GuestKiosk state={view}/>;
 }
 createRoot(document.getElementById('root')).render(<App/>);

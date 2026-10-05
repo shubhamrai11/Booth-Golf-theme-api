@@ -29,6 +29,9 @@ class CanonCapture {
     [DllImport("EDSDK.dll")] static extern uint EdsGetEvent();
     [DllImport("EDSDK.dll")] static extern uint EdsGetDirectoryItemInfo(IntPtr item,out ItemInfo info);
     [DllImport("EDSDK.dll",CharSet=CharSet.Ansi)] static extern uint EdsCreateFileStream(string name,uint disposition,uint access,out IntPtr stream);
+    [DllImport("EDSDK.dll")] static extern uint EdsCreateMemoryStream(ulong size,out IntPtr stream);
+    [DllImport("EDSDK.dll")] static extern uint EdsGetPointer(IntPtr stream,out IntPtr pointer);
+    [DllImport("EDSDK.dll")] static extern uint EdsGetLength(IntPtr stream,out ulong length);
     [DllImport("EDSDK.dll")] static extern uint EdsDownload(IntPtr item,ulong size,IntPtr stream);
     [DllImport("EDSDK.dll")] static extern uint EdsDownloadComplete(IntPtr item);
     [DllImport("EDSDK.dll")] static extern uint EdsDownloadCancel(IntPtr item);
@@ -40,8 +43,17 @@ class CanonCapture {
             if(evt==0x00000208 && !done) {
                 ItemInfo info; Check(EdsGetDirectoryItemInfo(obj,out info),"Read camera image");
                 if(!info.filename.EndsWith(".JPG",StringComparison.OrdinalIgnoreCase) && !info.filename.EndsWith(".JPEG",StringComparison.OrdinalIgnoreCase)) { EdsDownloadCancel(obj); return 0; }
-                Check(EdsCreateFileStream(output,1,2,out stream),"Create photo");
+                if(output=="-") Check(EdsCreateMemoryStream(0,out stream),"Create photo buffer");
+                else Check(EdsCreateFileStream(output,1,2,out stream),"Create photo");
                 Check(EdsDownload(obj,info.size,stream),"Download JPEG");
+                if(output=="-") {
+                    IntPtr pointer; ulong length;
+                    Check(EdsGetPointer(stream,out pointer),"Read photo buffer");
+                    Check(EdsGetLength(stream,out length),"Read photo size");
+                    if(length==0 || length>50*1024*1024) throw new Exception("Camera JPEG is too large. Choose a smaller JPEG size.");
+                    byte[] bytes=new byte[(int)length]; Marshal.Copy(pointer,bytes,0,bytes.Length);
+                    using(var stdout=Console.OpenStandardOutput()) stdout.Write(bytes,0,bytes.Length);
+                }
                 Check(EdsDownloadComplete(obj),"Complete transfer"); done=true;
             } else if(evt==0x00000208) EdsDownloadCancel(obj);
         } catch(Exception ex) { captureError=ex.Message; done=true; if(obj!=IntPtr.Zero) EdsDownloadCancel(obj); }
@@ -52,7 +64,7 @@ class CanonCapture {
         bool initialized=false, opened=false;
         try {
             if(args.Length!=2) throw new Exception("Expected SDK folder and JPEG output path.");
-            SetDllDirectory(Path.GetFullPath(args[0])); output=Path.GetFullPath(args[1]);
+            SetDllDirectory(Path.GetFullPath(args[0])); output=args[1]=="-" ? "-" : Path.GetFullPath(args[1]);
             Check(EdsInitializeSDK(),"Initialize SDK"); initialized=true;
             Check(EdsGetCameraList(out list),"Find camera"); int count; Check(EdsGetChildCount(list,out count),"Count cameras");
             if(count==0) throw new Exception("No Canon camera found. Connect USB, turn the camera on and close EOS Utility.");
@@ -65,7 +77,7 @@ class CanonCapture {
             while(!done && DateTime.UtcNow<end) { EdsGetEvent(); System.Windows.Forms.Application.DoEvents(); Thread.Sleep(50); }
             if(!done) throw new Exception("Camera transfer timed out. Set JPEG capture and check autofocus and USB.");
             if(captureError!=null) throw new Exception(captureError);
-            Console.WriteLine("Captured"); return 0;
+            if(output!="-") Console.WriteLine("Captured"); return 0;
         } catch(DllNotFoundException) { Console.Error.WriteLine("Canon EDSDK or its dependencies could not load. Install the complete Canon 64-bit SDK runtime."); return 1; }
         catch(BadImageFormatException) { Console.Error.WriteLine("This capture bridge needs the 64-bit Canon EDSDK runtime."); return 1; }
         catch(Exception ex) { Console.Error.WriteLine(ex.Message); return 1; }

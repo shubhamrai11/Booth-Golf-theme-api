@@ -62,21 +62,22 @@ function Result({ guest, cloud }) {
   const { job, working, error, notice } = guest;
   return <div className="guest-result"><div className="guest-result-media"><div className="guest-result-photo"><img src={media(job)} alt="Your finished golf portrait"/></div></div><section className="guest-result-copy">
     <h1>Your photo is ready!</h1>
-    <p className="guest-result-intro">Print your portrait or scan to take it with you.</p>
+    <p className="guest-result-intro">Print your portrait. Your photo clears after printing.</p>
     {job.mode === 'rehearsal' ? <p className="guest-result-mode">Rehearsal · No AI transformation</p> : null}
     <div className="guest-result-actions"><button className="guest-secondary" onClick={() => { guest.clearMessage(); setDialog('delete'); }} disabled={working}><GuestIcon name="trash" size={31}/><span><strong>DELETE</strong><small>Try again</small></span></button><button className="guest-primary" onClick={() => guest.action('print')} disabled={working}><GuestIcon name="print" size={33}/><span><strong>{working ? 'SENDING…' : 'PRINT'}</strong><small>Get your photo</small></span></button></div>
-    <div className="guest-result-links"><button className="guest-link" disabled={working} onClick={guest.reset}>Next guest <GuestIcon name="arrow" size={18}/></button>{job.downloadUrl ? <button className="guest-link" onClick={() => { guest.clearMessage(); setDialog('qr'); }}><GuestIcon name="qr" size={21}/>Scan to download</button> : null}</div>
+    <div className="guest-result-links"><button className="guest-link" disabled={working} onClick={guest.reset}>{guest.browserPrinted ? 'Done & clear photo' : 'Clear photo & next guest'} <GuestIcon name="arrow" size={18}/></button></div>
     {notice || error ? <p className={`guest-result-notice ${error ? 'has-error' : ''}`} role={error ? 'alert' : 'status'}>{error || notice}</p> : null}
     </section>
-    {dialog === 'delete' ? <GuestDialog title="Delete this photo?" onClose={() => !working && setDialog(null)}><p>This removes your photo and its download link. You can then take a new photo.</p>{error ? <p className="guest-error" role="alert">{error}</p> : null}<button className="guest-danger" disabled={working} onClick={async () => { if (await guest.action('delete')) setDialog(null); }}>Delete and try again</button><button className="guest-secondary" disabled={working} onClick={() => setDialog(null)}>Keep my photo</button></GuestDialog> : dialog === 'qr' ? <GuestDialog title="Keep your golf photo" onClose={() => setDialog(null)}><img className="guest-qr" src={`/api/qr/${job.id}`} alt="Scan this QR code to download your photo"/><p>Scan with your phone camera.<br/>{cloud ? 'Download using Wi-Fi or mobile data.' : 'Ask the operator for the booth Wi-Fi.'}</p><button className="guest-primary" onClick={() => setDialog(null)}>Done</button></GuestDialog> : null}
+    {dialog === 'delete' ? <GuestDialog title="Clear this photo?" onClose={() => !working && setDialog(null)}><p>This discards the temporary photo. You can then take a new photo.</p>{error ? <p className="guest-error" role="alert">{error}</p> : null}<button className="guest-danger" disabled={working} onClick={async () => { if (await guest.action('delete')) setDialog(null); }}>Delete and try again</button><button className="guest-secondary" disabled={working} onClick={() => setDialog(null)}>Keep my photo</button></GuestDialog> : null}
   </div>;
 }
 export function GuestKiosk({ state, refresh, offline }) {
   const guest = useGuestSession(state, refresh);
   const screen = guest.job?.status === 'complete' ? 'result' : guest.phase === 'welcome' ? 'welcome' : 'capture';
+  useEffect(()=>{window.scrollTo(0,0);},[screen]);
   return <main className={`guest-shell guest-${screen}-shell`}><div className={`guest-experience ${screen}`}>
-    <header className="guest-welcome-header"><div className="guest-logo"><Icon name="flag" size={44}/><span>YOUR LOGO</span></div><div className="guest-header-actions">{screen === 'welcome' ? <a className="guest-settings" href="/?view=setup&from=kiosk" aria-label="Admin settings"><Icon name="settings" size={20}/><span>Settings</span></a> : null}<FullscreenButton/></div></header>
+    <header className="guest-welcome-header"><div className="guest-logo"><Icon name="flag" size={44}/><span>YOUR LOGO</span></div><div className="guest-header-actions">{screen === 'welcome' ? <a className="guest-settings" href="/?view=setup&from=kiosk" onClick={event=>{if(state.openSettings){event.preventDefault();state.openSettings();}}} aria-label="Admin settings"><Icon name="settings" size={20}/><span>Settings</span></a> : null}<FullscreenButton/></div></header>
     {offline ? <div className="guest-offline" role="alert">Connection lost. Reconnecting to the booth…</div> : null}
-    {screen === 'welcome' ? <Welcome guest={guest} disabled={offline || state.capturing} rehearsal={state.config.mode === 'rehearsal'}/> : screen === 'result' ? <Result key={guest.job.id} guest={guest} cloud={state.cloud}/> : <Capture guest={guest} config={state.config} paused={state.paused} canRetry={!state.cloud || state.role==='admin'}/>}
+    {screen === 'welcome' ? <><Welcome guest={guest} disabled={offline || state.capturing} rehearsal={state.config.mode === 'rehearsal'}/>{guest.notice ? <p className="temporary-welcome-notice" role="status">{guest.notice}</p> : null}</> : screen === 'result' ? <Result key={guest.job.id} guest={guest} cloud={state.cloud}/> : <Capture guest={guest} config={state.config} paused={state.paused} canRetry={false}/>}
   </div></main>;
 }

@@ -1,12 +1,10 @@
-PRIVATE EVENT REFERENCE PHOTOGRAPHS
+OPTIONAL LOCAL EVENT PRESETS
 
-Before starting a fresh source checkout, place these two approved JPEGs here:
-  golf-reference.jpg
-  golf-outfit-reference.jpg
+Place your predefined golf-reference.jpg and golf-outfit-reference.jpg here.
+They are event design assets, never captured guest photos. The Windows helper
+loads them into browser memory automatically. They remain available after refresh.
+The real JPEG files are excluded from Git; only this instruction ships in source.
 
-These event-specific photographs are intentionally ignored by Git. Do not upload
-personal guest photographs to the source repository. The running booth can replace
-references through Setup; those changes are stored privately under data/assets.
-
-The optional outfit reference can be removed in Setup after startup. This version
-still expects both bundled files to exist when initializing a fresh installation.
+On Vercel, select custom files in Settings or connect the Windows helper to load
+these presets. Files selected in the browser disappear on a full page refresh.
+If no preset is provided, the app uses the bundled illustrative golf scene.

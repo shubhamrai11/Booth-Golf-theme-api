@@ -1,32 +1,54 @@
 # Fairway Studio
 
-Golf photo booth for Windows with a Vercel website and a Windows camera/printer helper. Guest flow: **Capture → Review → Generate → Display → Print / QR download**. Guests have no upload option.
+A responsive golf photo booth with a Vercel website and Windows camera/printer helper.
+The guest cycle is **Capture → Review → Generate → Print → Clear**. Guests have
+one input option: capture a photo.
 
-The interface fills the browser window and adapts to desktops, laptops, tablets
-and phones. Large screens show the scene controls and course image side by side;
-small screens stack them with touch-sized controls. Review and result screens
-keep the complete portrait visible, including the print border.
+## Temporary photos
 
-Use the square **Full screen** control in the header to enter or exit full screen.
-It is available on guest, admin, display and Windows helper screens. On desktop,
-**Esc** also exits. Full screen requires browser support and a user click; when
-unavailable, the app shows a message with the browser's alternative.
+One guest's capture and result live only in browser memory. Refresh, Delete,
+retake, or Next guest releases them. After a confirmed Windows print submission,
+the app clears the photo and returns to welcome. No guest photo files, database,
+cloud bucket, resumable session, photo history or QR download links are created.
 
-## Vercel deployment
+The server handles image bytes in RAM for the current request and returns the
+finished JPEG directly, with caching disabled. Canon downloads to a memory stream;
+the print bridge reads image bytes from stdin. Windows still uses its normal
+print spooler. The AI provider's own retention and billing rules remain separate
+from this app. Refresh does not undo a request already sent to the provider.
 
-Follow [VERCEL-SETUP.md](VERCEL-SETUP.md). Vercel hosts the interface and authenticated server API; Supabase stores event settings, jobs, Windows commands and private photos. OpenAI image editing runs on the server. The Windows app receives commands over outbound HTTPS for Canon capture and printing.
+Small equipment settings, encrypted credentials and command IDs are saved on
+the Windows PC. Command IDs contain no photos and prevent a repeated shutter or
+print after a lost response or helper restart. Old photo files from earlier app
+versions are not migrated or deleted by this version.
 
-New installations start in **Rehearsal**, with no AI charges. Upload references in Setup before enabling Live AI. Sunburst / Max / 1536 × 2304 remain the defaults; the final branded print is 1200 × 1800. The guest supplies identity; the main and optional outfit references guide the scene and clothing.
+## Deployment
 
-Admin login protects settings and paid retries. **Start guest mode & lock settings** authorizes this booth browser for 12 hours, then locks admin controls. Public guests receive only an unguessable, expiring link to their finished portrait.
+Follow [VERCEL-SETUP.md](VERCEL-SETUP.md). The only required deployment variable is
+**OPENAI_API_KEY**. No Supabase account, admin password, session secret, public URL
+setting or manually entered device token is required. The key stays server-side.
 
-Generation approvals and hardware commands are saved before execution. Database claims allow one active generation per booth. Failed/interrupted AI jobs are never automatically retried. Review provider billing before an explicit retry. The Windows helper keeps a command ledger: a lost upload or acknowledgment cannot repeat a shutter release or print. A restart during an uncertain hardware action reports failure for operator review.
+Live generation on Vercel needs the Windows helper connected from Settings using
+the same OpenAI key. The helper creates a temporary, origin-specific connection
+and signs the exact generation request. Visitors without an approved helper
+connection cannot use the paid AI endpoint. Connections expire after 12 hours or
+when the helper restarts; connect again when starting the next event.
 
-The queue advances while a booth screen polls or the Windows helper sends heartbeats. If all disconnect, queued jobs wait until one reconnects. Expired links stop working immediately; physical photo deletion resumes during polling. Reference assets are retained for queued snapshots. Use one Supabase project per event.
+Rehearsal is the default and makes no paid AI call. It frames the captured photo;
+it does not turn the guest into a golfer. Live defaults remain Sunburst, Max,
+1536 × 2304, composed into a 1200 × 1800 print. Each capture needs an explicit
+Use this photo action before generation. There are no automatic AI retries.
 
-## Windows camera and printer
+Vercel Hobby functions allow at most 300 seconds. This app gives AI 240 seconds
+and reserves time for framing. Sunburst Max can exceed that budget. An interrupted
+request may be charged and its result cannot be recovered after refresh. Try
+High quality or run locally if Max generation consistently exceeds the limit.
+See [Vercel function limits](https://vercel.com/docs/functions/limitations).
 
-Requirements: 64-bit Windows 10/11, Node.js 22+, npm, PowerShell and the printer's Windows driver. Direct Canon capture requires your licensed 64-bit Canon EDSDK; it is not distributed here.
+## Windows operation
+
+64-bit Windows 10/11, a printer driver, and a licensed 64-bit Canon EDSDK runtime
+are needed for physical capture/printing. The SDK is not distributed here.
 
 ```powershell
 npm ci
@@ -34,46 +56,61 @@ npm run build:windows
 npm start
 ```
 
-Open `http://127.0.0.1:4310/?view=setup`. Configure the Canon SDK or EOS Utility folder and printer; save settings. Under **Connect this Windows booth**, enter the Vercel address and the same `BOOTH_DEVICE_TOKEN` saved on Vercel. Enable it and keep the app running. Device credentials use Windows user encryption.
+Open http://127.0.0.1:4310/?view=setup. Select the Canon SDK folder and printer,
+save the OpenAI key, choose Rehearsal or Live, and save settings. The portable
+**Fairway Memory Helper.exe** runs on port 4314 for a hosted Vercel booth.
+Keep the entire extracted helper folder together.
 
-When the cloud helper is enabled, generate from the cloud screen. Local capture does not automatically generate additional copies. Folder monitoring must be enabled again after a restart; existing photos are ignored. Direct Canon capture has no live preview and shows the photo after capture.
+Direct Canon capture has no live video preview. It downloads the JPEG after the
+countdown. Set the camera to JPEG and close EOS Utility. Folder watching was
+removed because it requires photo files on disk. Browser webcam capture remains
+available. Physical R100/200D capture and actual print output need testing on
+the event equipment; compilation and simulated equipment tests do not verify them.
 
-The app also operates locally with the helper disabled. Upload references in Setup and save a local API key there, use `OPENAI_API_KEY` in the local environment, or use the ignored `api-key.local.mjs`. Rehearsal works without references. Optional preloaded personal templates in `assets/golf-reference.jpg` and `assets/golf-outfit-reference.jpg` remain excluded from Git.
+The private api-key.local.mjs option remains supported for local code setup.
+Copy the empty [api-key.example.mjs](api-key.example.mjs) and keep the real file
+private. A nonempty code key overrides the environment and encrypted Setup key
+at startup. Clear that code value to use a key saved in Setup. Never commit keys.
 
-| Screen | Route |
-| --- | --- |
-| Guest capture | `/kiosk` |
-| Admin setup | `/?view=setup` |
-| Operator sessions | `/` |
-| Large screen | `/display` |
-| Individual download | `/p/<token>` |
+## Settings, references and display
 
-Locally, operator pages use port 4310; guest download links use 4311 and require booth Wi-Fi or configured guest-only HTTPS forwarding. Cloud QR downloads work over mobile data or Wi-Fi. Do not expose local operator port 4310 to the internet.
+Settings are available from the welcome screen. Model, prompt, event name and
+frame text remain saved between guests. Optional event reference, outfit and
+transparent PNG files are held in page memory, retained while moving between
+Settings and welcome, and removed by a full refresh. A bundled illustrative golf
+reference is available by default. Select your final reference design before an
+event; references guide composition/clothing, and the capture supplies identity.
 
-## Development and verification
+The Windows helper can also load predefined assets/golf-reference.jpg and
+assets/golf-outfit-reference.jpg. These event templates remain on the PC and
+are loaded into memory when the local app opens or the website reconnects.
+They contain the reusable design, not newly captured guest photographs.
+
+Open /display in another window of the same browser profile and website origin,
+move it to the large screen, and select Full screen. The current result is sent
+through a browser BroadcastChannel; it clears with the guest session. A disconnected
+or closed guest window also clears the display after at most ten seconds. This
+is a local browser display connection, not a gallery available on other devices.
+
+Hosted webcam Rehearsal can use the browser print dialog without the helper.
+Because cancellation cannot be reliably detected, select **Done & clear photo**
+after printing. Direct Windows helper printing clears automatically once the
+spooler accepts the job; this does not confirm that paper has physically printed.
+
+## Development
 
 ```powershell
 npm test
 npm run build
 ```
 
-Tests use synthetic images and a mock AI provider. The schema runs in local PostgreSQL via PGlite to verify queue claims, leases, grants and command expiry. Tests do not spend API credits or use real hardware.
+Tests use synthetic images, mock AI and simulated hardware, with no API charges.
+They verify memory cleanup, stale response handling, signed requests, validation,
+no automatic retries, equipment replay prevention and absence of guest image files.
+Vite development proxies /api to the local server; run npm start separately.
 
-`npm run build:web` builds the Vercel frontend; Vercel bundles `api/index.js` and its cloud dependencies separately. `npm run dev` uses the local API proxy; run `npm start` separately. Native executables and portable runtimes are built separately and ignored by Git.
+[AGENTS.md](AGENTS.md) requests automatic commits after completed, tested coding
+changes. It does not install a timer or commit unfinished file saves.
 
-Actual Vercel/Supabase operation, Canon capture, physical print quality and live OpenAI generation require an end-to-end test after account configuration. Review facial likeness and anatomy before printing.
-
-## Automatic commits for completed tasks
-
-[AGENTS.md](AGENTS.md) instructs Codex to commit each completed change after the
-appropriate checks pass, without another confirmation. It preserves unrelated
-work and excludes private credentials, guest photos and generated files. This
-is a completion policy for coding assistants; it does not commit every file
-save or install a background service. GitHub publishing follows the current
-task's authorization.
-
-## Private files
-
-Do not commit real environment values, `api-key.local.mjs`, encrypted credentials, Canon SDK binaries or `data/`. Data includes photos, settings, guest tokens and the local command ledger. Never use `VITE_` for server secrets. The example environment file contains names only.
-
-See [START-HERE.txt](START-HERE.txt) for additional local hardware instructions.
+Keep settings/, old data/, api-key.local.mjs, real environment values, licensed
+SDK binaries and generated builds out of Git. Never prefix an API key with VITE_.

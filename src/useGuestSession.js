@@ -1,90 +1,66 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, post } from './api';
-const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-const storageKey = 'fairway-guest-capture';
-export function useGuestSession(state, refresh) {
-  const [requestId, setRequestId] = useState(() => sessionStorage.getItem(storageKey) || '');
-  const [phase, setPhase] = useState(() => sessionStorage.getItem(storageKey) ? 'waiting' : 'welcome');
-  const [count, setCount] = useState(null), [error, setError] = useState('');
-  const [scene, setScene] = useState('classic'), [working, setWorking] = useState(false), [printCommand,setPrintCommand]=useState(''), [notice, setNotice] = useState('');
-  const video = useRef(null), stream = useRef(null), operation = useRef(0), locked = useRef(false), seenJob = useRef('');
-  const job = state.jobs.find(j => requestId && j.captureRequestId === requestId);
-  function stopCamera() { stream.current?.getTracks().forEach(t => t.stop()); stream.current = null; }
-  useEffect(() => () => { operation.current++; stopCamera(); }, []);
-  useEffect(() => {
-    if (job) seenJob.current = job.id;
-    else if (requestId && seenJob.current) { setError('This photo is no longer available. Please start a new photo.'); setPhase('error'); seenJob.current = ''; }
-  }, [job, requestId]);
-  useEffect(() => {
-    if (phase !== 'waiting' || job) return;
-    const timer = setTimeout(() => { setError('No photo has arrived yet. Ask the booth operator to check the camera.'); setPhase('error'); }, 180000);
-    return () => clearTimeout(timer);
-  }, [phase, job]);
-  useEffect(()=>{if(!printCommand)return;const command=state.commands?.find(c=>c.id===printCommand);if(command?.status==='complete')setNotice('Sent to the Windows print queue. Please collect your photo.');else if(command?.status==='failed') {setNotice('');setError(command.error || 'Printing did not confirm. Ask the operator to check the printer.');}},[state.commands,printCommand]);
-  useEffect(()=>{const command=state.commands?.find(c=>c.target===requestId && c.kind==='capture');if(!job && command?.status==='failed'){setError(command.error || 'The camera could not complete this capture.');setPhase('error');}},[state.commands,requestId,job]);
-  async function reset() {
-    if (working) return;
-    operation.current++; stopCamera(); locked.current = false;
-    if (!job && requestId) {
-      try { await post('/api/capture/cancel', { requestId }); } catch(e) { setError(e.message); return; }
-    }
-    seenJob.current = ''; setRequestId(''); sessionStorage.removeItem(storageKey); setPhase('welcome'); setCount(null); setError(''); setNotice('');
+import { MemoryPortrait } from './memory-portrait.mjs';
+import { helperFetch, generateTemporary, connected } from './temporary-api';
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+export function useGuestSession(state) {
+  const [phase,setPhase]=useState('welcome'),[job,setJob]=useState(null),[count,setCount]=useState(null),[scene,setScene]=useState('classic'),[working,setWorking]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[browserPrinted,setBrowserPrinted]=useState(false);
+  const video=useRef(null),stream=useRef(null),operation=useRef(0),locked=useRef(false),channel=useRef(null),printFrame=useRef(null),printRequestId=useRef(null);
+  const memory=useRef(null);if(!memory.current)memory.current=new MemoryPortrait({changed:setJob,publish:value=>channel.current?.postMessage({type:value?'photo':'clear',value})});
+  function stopCamera(){stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;}
+  function clear(){operation.current++;stopCamera();memory.current.clear();printFrame.current?.remove();printFrame.current=null;printRequestId.current=null;locked.current=false;setWorking(false);setCount(null);setError('');setNotice('');setBrowserPrinted(false);setPhase('welcome');}
+  useEffect(()=>{
+    // Remove the older version's resumable photo ID. No pixels are written to storage.
+    sessionStorage.removeItem('fairway-guest-capture');
+    channel.current=new BroadcastChannel('fairway-temporary-display-v4');channel.current.postMessage({type:'clear'});
+    channel.current.onmessage=event=>{if(event.data?.type==='request'&&memory.current.result)channel.current.postMessage({type:'photo',value:{blob:memory.current.result,job:{...memory.current.job,url:undefined}}});};
+    const heartbeat=setInterval(()=>{if(memory.current.result)channel.current?.postMessage({type:'alive'});},2000);
+    const discard=()=>{operation.current++;stopCamera();memory.current.clear();printFrame.current?.remove();};
+    const restored=event=>{if(event.persisted)clear();};
+    window.addEventListener('pagehide',discard);window.addEventListener('pageshow',restored);
+    return()=>{discard();clearInterval(heartbeat);channel.current.close();channel.current=null;window.removeEventListener('pagehide',discard);window.removeEventListener('pageshow',restored);};
+  },[]);
+  async function start(){
+    if(locked.current)return;clear();locked.current=true;const current=++operation.current;setPhase('capture');
+    try{
+      if(state.config.cameraMode==='webcam'){
+        const mediaStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080}},audio:false});
+        if(current!==operation.current){mediaStream.getTracks().forEach(t=>t.stop());return;}stream.current=mediaStream;
+        for(let i=0;i<100&&!video.current;i++)await pause(50);if(!video.current)throw new Error('Camera preview could not open.');
+        video.current.srcObject=mediaStream;await video.current.play();for(let i=0;i<100&&!video.current?.videoWidth;i++)await pause(50);if(!video.current?.videoWidth)throw new Error('The camera is not sending a picture.');
+      }else if(!connected())throw new Error('Ask the operator to connect the Windows helper in Settings.');
+      for(let n=6;n>0;n--){if(current!==operation.current)return;setCount(n);await pause(1000);}
+      if(current!==operation.current)return;setCount(null);setPhase('sending');let blob;
+      if(state.config.cameraMode==='webcam'){
+        const canvas=document.createElement('canvas');canvas.width=video.current.videoWidth;canvas.height=video.current.videoHeight;canvas.getContext('2d').drawImage(video.current,0,0);blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.96));
+        if(!blob)throw new Error('The camera photo could not be captured.');
+      }else blob=await (await helperFetch('/api/temporary/capture',{method:'POST',headers:{'X-Request-Id':crypto.randomUUID()}})).blob();
+      if(current!==operation.current)return;memory.current.capture(blob);setPhase('review');
+    }catch(e){if(current===operation.current){setError(e.name==='NotAllowedError'?'Camera access was not allowed. Enable it in browser settings.':e.message);setPhase('error');}}
+    finally{if(current===operation.current){stopCamera();setCount(null);locked.current=false;}}
   }
-  async function start() {
-    if (locked.current || working || state.capturing) return;
-    locked.current = true; const current = ++operation.current;
-    setError(''); setNotice(''); setPhase('capture'); setCount(null);
-    try {
-      if (state.config.cameraMode === 'webcam') {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error('The camera is not available in this browser. Ask the booth operator for help.');
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-        if (operation.current !== current) { mediaStream.getTracks().forEach(t => t.stop()); return; }
-        stream.current = mediaStream;
-        for (let i = 0; i < 100 && !video.current; i++) await pause(50);
-        if (!video.current) throw new Error('Camera preview could not open. Please try again.');
-        video.current.srcObject = mediaStream; await video.current.play();
-        for (let i = 0; i < 100 && !video.current?.videoWidth; i++) await pause(50);
-        if (!video.current?.videoWidth) throw new Error('The camera is not sending a picture yet. Please try again.');
+  async function action(name){
+    if(locked.current||!memory.current.job)return false;
+    if(name==='delete'){clear();return true;}
+    locked.current=true;setWorking(true);setError('');setNotice('');const current=operation.current;
+    try{
+      if(name==='generate'){
+        setPhase('processing');await memory.current.generate((blob,signal)=>generateTemporary(blob,state.config,scene,state.assets||{},signal),state.config.mode);
+      }else if(name==='print'){
+        if(connected()){
+          printRequestId.current ||= crypto.randomUUID();
+          await helperFetch('/api/temporary/print',{method:'POST',headers:{'Content-Type':'image/jpeg','X-Request-Id':printRequestId.current},body:memory.current.result});
+          if(current===operation.current){clear();setNotice('Sent to the Windows print queue. Please collect your photo.');}
+        }else{
+          // A print dialog cannot reliably report cancellation. Keep the result until Done.
+          printFrame.current?.remove();const frame=document.createElement('iframe');frame.title='Print your golf portrait';frame.style.cssText='position:fixed;left:-10000px;width:400px;height:600px';printFrame.current=frame;document.body.appendChild(frame);
+          const doc=frame.contentDocument;doc.open();doc.write('<html><head><title>Golf portrait</title><style>@page{size:4in 6in;margin:0}html,body{margin:0}img{width:100%;height:100%;object-fit:contain}</style></head><body><img alt="Golf portrait"></body></html>');doc.close();
+          const image=doc.querySelector('img');image.src=memory.current.job.url;await image.decode();frame.contentWindow.focus();frame.contentWindow.print();setBrowserPrinted(true);setNotice('After printing, choose Done & clear photo. If you canceled, you can print again.');
+        }
       }
-      for (let n = 6; n > 0; n--) {
-        if (current !== operation.current) return;
-        setCount(n); await pause(1000);
-      }
-      if (current !== operation.current) return;
-      setCount(null); setPhase('sending');
-      const id = crypto.randomUUID(); setRequestId(id); sessionStorage.setItem(storageKey, id);
-      const query = '?scene=' + scene + '&requestId=' + id + '&review=true';
-      let response;
-      if (state.config.cameraMode === 'webcam') {
-        const camera = video.current, canvas = document.createElement('canvas');
-        canvas.width = camera.videoWidth; canvas.height = camera.videoHeight;
-        canvas.getContext('2d').drawImage(camera, 0, 0);
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.96));
-        if (!blob) throw new Error('Could not capture the camera picture. Please try again.');
-        response = await api('/api/capture/webcam' + query, { method: 'POST', body: blob });
-      } else response = await post('/api/capture' + query);
-      if (current !== operation.current) return;
-      setPhase(response.waiting ? 'waiting' : 'processing'); await refresh();
-    } catch(e) {
-      if (current === operation.current) { setError(e.name === 'NotAllowedError' ? 'Camera access was not allowed. Ask the booth operator to enable it.' : e.message); setPhase('error'); }
-    } finally {
-      if (current === operation.current) { stopCamera(); setCount(null); locked.current = false; }
-    }
+      return true;
+    }catch(e){if(current===operation.current)setError(e.message);return false;}
+    finally{if(current===operation.current){setWorking(false);locked.current=false;}}
   }
-  async function action(name) {
-    if (locked.current || !job) return false;
-    locked.current = true; setWorking(true); setError(''); setNotice('');
-    try {
-      const response=await post(`/api/sessions/${job.id}/${name}`);
-      if (name === 'delete') { seenJob.current = ''; setRequestId(''); sessionStorage.removeItem(storageKey); setPhase('welcome'); }
-      if (name === 'print') { setPrintCommand(response.commandId || ''); setNotice(response.queued ? 'Print queued. Waiting for the Windows booth…' : 'Sent to the printer. Please collect your photo.'); }
-      if (name === 'generate' || name === 'retry') setPhase('processing');
-      await refresh(); return true;
-    } catch(e) { setError(e.message); return false; }
-    finally { setWorking(false); locked.current = false; }
-  }
-  async function retake() {
-    if (job?.status === 'captured' && await action('delete')) await start();
-  }
-  return { phase, count, scene, setScene, job, video, start, reset, action, retake, error, notice, working, clearMessage: () => { setError(''); setNotice(''); } };
+  async function retake(){if(!locked.current)await start();}
+  return {phase,count,scene,setScene,job,video,start,reset:clear,action,retake,error,notice,working,browserPrinted,clearMessage:()=>{setError('');setNotice('');}};
 }

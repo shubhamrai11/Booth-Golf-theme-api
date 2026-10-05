@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Collections.Generic;
@@ -11,7 +12,9 @@ class PrintPhoto {
                 Console.WriteLine(new JavaScriptSerializer().Serialize(names)); return 0;
             }
             if(args.Length!=2) throw new Exception("Choose an image and printer.");
-            using(var image=Image.FromFile(args[0])) using(var doc=new PrintDocument()) {
+            using(var input=args[0]=="-" ? new MemoryStream() : null) {
+            if(input!=null) { Console.OpenStandardInput().CopyTo(input); input.Position=0; }
+            using(var image=input!=null ? Image.FromStream(input) : Image.FromFile(args[0])) using(var doc=new PrintDocument()) {
                 doc.PrinterSettings.PrinterName=args[1];
                 if(!doc.PrinterSettings.IsValid) throw new Exception("The selected Windows printer is unavailable.");
                 doc.PrinterSettings.Copies=1; doc.DocumentName="Fairway Studio portrait";
@@ -27,6 +30,7 @@ class PrintPhoto {
                     e.Graphics.DrawImage(image,x,y,w,h); e.HasMorePages=false;
                 };
                 doc.Print(); Console.WriteLine("Sent to printer"); return 0;
+            }
             }
         } catch(Exception ex) { Console.Error.WriteLine(ex.Message); return 1; }
     }

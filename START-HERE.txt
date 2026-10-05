@@ -1,157 +1,73 @@
-FAIRWAY STUDIO — DEVELOPMENT BUILD 0.2.5
+FAIRWAY STUDIO — TEMPORARY PHOTO BUILD 0.4.0
+
+CYCLE
+Capture -> Review -> Generate -> Print -> Clear.
+One guest photo lives in browser memory. Refresh/delete/retake clears it.
+A successful Windows print submission clears the result and returns to welcome.
+No guest photo files, database, photo history or QR download links are created.
 
 START
-Double-click Fairway Studio.exe in this folder. Keep the entire folder together.
-Windows 10/11, 64-bit. No separate Node.js install is required in the portable build.
-The app opens at http://127.0.0.1:4310. Use Setup > Stop booth before closing down.
-Closing a browser window alone leaves the photo download service running.
+Extract the entire package. Keep runtime, native, public and dist folders together.
+Double-click Fairway Memory Helper.exe for the hosted booth (port 4314).
+For a fully local booth, double-click Fairway Studio.exe (port 4310).
+Keep the helper running throughout the event. Closing a browser does not stop it.
 
-THIS BUILD IS A WORKING SOFTWARE FOUNDATION, NOT YET AN EVENT-VALIDATED BOOTH.
-Live image quality, Canon shutter operation, USB reliability and physical prints
-must be tested on the event hardware. A paid live AI generation has succeeded;
-likeness across many guests and physical camera/printer operation still need testing.
+SETUP
+Open Settings on the welcome screen. On the Windows helper, configure:
+- licensed 64-bit Canon EDSDK folder (SDK is not included)
+- Windows photo printer and its 4 x 6 portrait paper settings
+- your OpenAI API key, saved with Windows user encryption
+- generation mode, model, prompt and print frame
 
-1. CONNECT THE CAMERA
-Direct Canon capture needs the licensed 64-bit Canon EDSDK runtime, including
-EDSDK.dll and its dependencies. Obtain it through Canon's developer programme:
-https://www.usa.canon.com/support/sdk
-The Canon SDK is NOT bundled. Set its folder in Setup > Canon SDK folder.
-Connect the R100 or EOS 200D by USB. Use JPEG capture. Close EOS Utility so it
-does not hold the camera connection. Click Capture photo to trigger the shutter.
-There is no Canon live-preview feed in this build; the captured JPEG appears afterward.
-The bridge is compiled but has NOT been tested against either physical camera.
+Canon R100 / EOS 200D needs USB, JPEG mode and compatible licensed EDSDK.
+Close EOS Utility. Canon live video is not implemented; the capture appears
+following the six-second countdown. Browser webcam capture is also available.
+Folder watching is removed because it requires photo files on disk.
+Physical camera and printer operation still require an event-hardware test.
 
-Alternative: choose EOS Utility camera folder mode. Set Canon's download folder,
-enable monitoring in Setup, then take the photo with EOS Utility or the camera.
-New JPEG files are picked up automatically. This mode does NOT trigger the shutter.
-Monitoring starts with new files only and must be re-enabled after each restart.
-Webcam mode exists for development testing. There is no guest photo-upload option.
+VERCEL
+Follow VERCEL-SETUP.md. Add only OPENAI_API_KEY in Vercel's server environment.
+Use the same key in Windows helper Setup. No Supabase/password/manual token.
+On the same Windows PC, open the hosted /kiosk page. In Settings, choose Connect
+Windows helper, allow the browser's local network request if asked, then verify
+the website address and select Allow connection in the helper window.
+The connection lasts 12 hours or until the helper restarts. Reconnect after restart.
 
-2. CONNECT AI
-Enter your OpenAI API key locally in Setup and click Save API key. The key is
-encrypted for the current Windows user and is never returned to the browser.
-Choose Live AI and Save settings. A ChatGPT subscription does not include API usage.
-The default model is gpt-image-2.5-sunburst, with Max quality and 1536 x 2304
-portrait generation. This favors detail over speed and per-photo cost. Model,
-quality and image size can be changed in Setup. Older models do not support Max.
-There is no live connection to other AI providers in this build.
+REFERENCES
+Choose your event reference, optional outfit image and transparent PNG branding
+in website Settings. They stay in browser memory while moving back to welcome,
+but a full refresh removes them. The bundled scene is an illustrative fallback.
+Only the captured guest image supplies identity. References guide scene/clothing.
+No guest photo upload option is displayed. Check likeness before printing.
 
-To configure the key in code instead of entering it in Setup:
-Open api-key.local.mjs beside Fairway Studio.exe and paste your key between the
-quotes on the OPENAI_API_KEY line. If that file is absent in a downloaded copy,
-copy api-key.example.mjs and rename the copy to api-key.local.mjs first.
-Save the file, use Setup > Stop booth, and reopen Fairway Studio.exe.
-Then select Live AI in Setup and Save settings. No rebuild is needed.
-The local code file stores the key as plain text. Keep this file private.
-It is excluded from Git and the downloadable ZIP; only the empty example ships.
-At startup a nonempty local-file key takes priority over OPENAI_API_KEY in the
-environment and over an encrypted key saved through Setup. Clear the quoted value
-and restart to return to those methods. Keys are never returned to the guest UI.
+AI
+Rehearsal is the default: no charge and no golf transformation.
+Live defaults: Sunburst / Max / 1536 x 2304. Final print: 1200 x 1800 JPEG.
+Vercel free-plan generation must finish in 300 seconds; AI is limited to 240.
+Use High quality or run locally if Max consistently takes too long.
+No automatic retry is made. A timeout or refresh may still be charged by the
+provider. Refresh loses the photo/result and cannot recover the previous request.
 
-Rehearsal mode makes no AI calls. It puts the original camera photo into the print
-frame and marks it REHEARSAL. It does not transform a person into a golfer.
-The supplied sunny golf photo and women's outfit example are saved as references.
-The captured guest photo is the only identity source. Both examples accompany each
-generation; clothing fit adapts to the guest's visible build and styling. This is
-outfit guidance, not a gender classifier. The prompt preserves the guest's own face,
-hairstyle and proportions, without copying the people in the reference pictures.
-In Setup > Reference & branding, change or remove the optional women's outfit
-reference. Removal applies to new generations and remains in effect after restart;
-queued sessions retain their saved references. No additional guest step is required.
-Facial likeness is an aim, not a guarantee. Test at least 10-20 guests before an event.
-Use clean, well-lit faces and ideally a full-length source photo.
+PRINT AND DISPLAY
+The Windows bridge reads pixels from memory and sends one copy to the spooler.
+The app clears when Windows accepts the job; this does not confirm paper output.
+Windows may keep spool data according to its printer settings.
+With hosted browser Rehearsal and no helper, printing uses the browser dialog.
+After printing, choose Done & clear photo. If canceled, the photo remains available.
+Open /display in another window of the same browser profile and website origin.
+Move it to the large screen and choose Full screen. Only the current portrait is
+shown. It clears with the guest page, or within ten seconds after disconnection.
 
-3. BRAND THE OUTPUT
-The final image is 1200 x 1800 pixels (4 x 6 inches at 300 pixels/inch).
-A red frame and YOUR LOGO placeholder are added after generation.
-Replace the event title and subtitle in Setup. When final branding is ready,
-add a transparent 1200 x 1800 PNG overlay. It is composited after AI and after
-the default frame. Disable the red frame if your overlay supplies the entire frame.
-The AI MODIFIED label remains visible. No official OMEGA logo asset is bundled.
+PRIVACY
+Only equipment settings, encrypted credentials and command IDs persist locally.
+These contain no guest images. Website preferences contain text/settings only.
+The AI provider's retention rules remain separate. Older versions' data folders
+are not migrated or deleted. Use this new build for the temporary photo cycle.
+Never publish API keys, private key modules, settings, old data or Canon SDK files.
 
-4. PRINT
-Install the printer's Windows driver, select it in Setup, and set 4 x 6 portrait
-paper in Windows printer preferences. After a result appears, click Print photo.
-Each click sends one copy to the Windows print spooler. Sent to printer does not
-mean a physical print has completed. Borderless output depends on your driver.
-Do a physical test for crop, colour, margins and paper orientation before an event.
-Only virtual printers were available during development, so no physical print was tested.
-
-5. LARGE SCREEN
-Choose Open display, move that window to the large screen and select Full screen.
-Every finished portrait appears with its matching QR code. Completed sessions rotate.
-Use Setup > Open guest capture screen for a minimal capture-only guest interface.
-The operator screen remains separate for setup, session history and error recovery.
-
-THREE-STAGE GUEST EXPERIENCE
-Open Guest screen from the operator header, or visit http://127.0.0.1:4310/kiosk.
-Before the event, tap Settings at the top right of the welcome screen. It opens
-the camera, printer and other event settings in the same window. Choose your
-devices, then use Save & return to welcome to save and reopen the guest screen.
-Back to welcome returns without saving changes. The Settings shortcut appears
-only on the welcome screen; it does not interrupt capture or image generation.
-Use the browser's full-screen mode on the guest touch display. Portrait is preferred;
-on a landscape screen the portrait experience is centred against the golf background.
-1. Welcome: choose Classic, Swing, Trophy or Cart, then CLICK TO START.
-   Classic uses the saved prompt unchanged; other choices add scene-specific poses
-   and props for that guest. Thumbnails are illustrative, not promised AI outputs.
-2. Capture: six-second countdown, then the real captured photo and a generation
-   activity bar. The bar does not claim a completion percentage. Canon mode shows
-   a positioning guide until capture; live video is available only in webcam mode.
-3. Result: PRINT sends one copy; DELETE asks for confirmation before removing the
-   photo and its link. Next guest returns to welcome while keeping the current result.
-   Scan to download opens this guest's QR code. Refreshing resumes the same guest.
-   No guest photo-upload control is available. YOUR LOGO remains a UI placeholder.
-
-6. QR DOWNLOADS
-Each result has its own unguessable link. The default link uses the PC's local
-network address on port 4311. Guests must be on the same Wi-Fi, and the network
-and Windows firewall must allow access. Check the detected address in Setup;
-VPNs and multiple adapters may require entering the correct address manually.
-Links work only while this PC and app are running and until the photo expires.
-For mobile-data access, provide a public HTTPS domain or tunnel that routes only
-port 4311. Never expose operator port 4310. No cloud hosting or tunnel is provisioned.
-Printing remains available independently of QR connectivity.
-
-7. OPERATE
-Capture photo is the only guest input method. The guest kiosk now shows a photo
-check before AI generation: Use this photo starts generation; Retake photo discards
-the unprocessed capture and starts a new countdown without an AI request.
-Position the camera at eye level, use soft front lighting, and capture the whole
-head and shoulders. Ask for a level chin, relaxed eyes and a small smile.
-The portrait prompt preserves facial features while allowing a relaxed expression,
-upright head/neck alignment, warm directional sunlight and rich natural color.
-The bundled golf reference is the supplied sunny example. It provides posture,
-lighting, clothing and scene direction; the current capture provides identity.
-The model is instructed to ignore its frame, footer and screenshot controls.
-A good capture is
-still necessary: likeness and anatomy need visual review before printing.
-Max AI quality is the default. PNG transfer and lossless frame composition avoid
-extra compression before the final high-quality 1200 x 1800 JPEG print file.
-Operator captures can still generate automatically when that setting is enabled.
-Photos queue one at a time, up to 20 pending jobs. Sessions shows captured, queued,
-generating, complete and failed states. Pause stops new generations, not a running job.
-Errors require an operator retry. Timed-out AI requests may still be billed;
-there are no automatic paid retries. Interrupted jobs are marked failed at restart.
-Settings are snapshotted per queued session so edits do not change waiting guests.
-Photo files are kept in data/originals, data/generated and data/results.
-The default retention is seven days. Expired files are removed while the app runs
-or the next time it starts. Delete session removes its original and final files.
-Keep the data folder out of any software distribution you share with other operators.
-
-DEVELOPER SOURCE
-React + Vite front end; Node backend; C# Canon and Windows printing bridges.
-Install dependencies: npm ci
-Build: npm run build
-Tests: npm test
-Run source: npm start
-Rebuild native helpers: powershell -File scripts/build-native.ps1
-The API contract uses the guest image first, scene reference second, and optional
-outfit reference third at https://api.openai.com/v1/images/edits.
-The provider, queue, image composer and camera bridge are separated for later changes.
-
-Verified: production build; 20 automated integration tests; local browser UI checks;
-paid OpenAI image generation from a real guest capture with the saved golf reference.
-Unverified: real Canon SDK/camera, likeness across many guests, physical printer,
-phone-to-PC network access, public hosting, load testing and all-day event operation.
-The additional women's outfit reference still needs a real guest generation check.
+DEVELOPERS
+npm ci
+npm test
+npm run build:windows
+npm start
+See README.md and VERCEL-SETUP.md for deployment and technical limits.
