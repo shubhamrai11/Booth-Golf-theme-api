@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { parseEnv } from 'node:util';
 function crypt(value, encrypt) {
   return new Promise((resolve, reject) => {
     const script = encrypt
@@ -28,6 +29,17 @@ export async function loadKey(root, appRoot = path.dirname(root), env = process.
     if (value.trim()) return value.trim();
   }
   if (env.OPENAI_API_KEY) return env.OPENAI_API_KEY;
+  // Read only the server key; never inject private file contents into a web build.
+  const envFile = path.join(appRoot, '.env');
+  if (existsSync(envFile)) {
+    let value;
+    try { value = (parseEnv(readFileSync(envFile, 'utf8')).OPENAI_API_KEY || '').trim(); }
+    catch { throw new Error('Could not read .env. Check the file, save it, and restart.'); }
+    if (value.length > 1000 || /\s/.test(value)) {
+      throw new Error('Invalid OPENAI_API_KEY in .env. Use a key without spaces, or leave it empty.');
+    }
+    if (value) return value;
+  }
   const file = path.join(root, 'openai-key.dpapi');
   if (!existsSync(file)) return '';
   return crypt(readFileSync(file, 'utf8'), false).catch(() => '');

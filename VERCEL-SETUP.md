@@ -6,15 +6,22 @@
 2. Use the repository root, **Vite**, **npm run build:web**, output **dist**, and
    Node.js 22 or newer. vercel.json supplies these settings and a 300-second
    maximum function duration.
-3. In **Project → Settings → Environment Variables**, add **OPENAI_API_KEY** as
-   a server variable for Production (and Preview if needed). Do not use VITE_.
-   API billing belongs to your OpenAI account. Never paste the key in GitHub.
+3. Copy **.env.example** to **.env** in the code folder (or use the private .env
+   already created locally). Paste your key after `OPENAI_API_KEY=` and save.
+   In **Project → Settings → Environment Variables**, use **Import .env** to
+   select that file. Choose **Production** (and Preview if needed), then Save.
+   If the import control is unavailable, add OPENAI_API_KEY and paste just its
+   value manually. Do not use VITE_. Never upload .env to GitHub or public files.
+   Vercel supplies the imported value to the server; the private file itself
+   is not a public website asset. API billing belongs to your OpenAI account.
 4. Redeploy after adding or replacing a variable. Existing Supabase and BOOTH_*
    variables are no longer read and can be removed from Vercel. This version
    needs no database, storage service or Supabase schema.
 5. On the Windows event PC, extract the complete new 0.4 Memory Helper package
    and start **Fairway Memory Helper.exe**. Configure the licensed Canon SDK folder,
    Windows printer and the same OpenAI key in helper Settings. Save settings.
+   Alternatively, put your private **.env** beside the helper EXE, then restart
+   the helper. A filled .env takes priority over a key saved in Settings.
 6. Open your Vercel **/kiosk** page in Chrome or Edge on that same PC. Select
    **Settings → Connect Windows helper**. If the browser requests local network
    access, allow the booth website. Select **Allow connection** in the local
@@ -71,4 +78,5 @@ control a printer on a different device. If local connections are restricted by
 your browser or network policy, operate the complete app locally instead.
 
 Official references: [Vercel limits](https://vercel.com/docs/functions/limitations),
+[Vercel environment variables](https://vercel.com/docs/environment-variables/managing-environment-variables),
 [Chrome local network permission](https://developer.chrome.com/blog/local-network-access).

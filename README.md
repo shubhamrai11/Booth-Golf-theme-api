@@ -28,6 +28,12 @@ Follow [VERCEL-SETUP.md](VERCEL-SETUP.md). The only required deployment variable
 **OPENAI_API_KEY**. No Supabase account, admin password, session secret, public URL
 setting or manually entered device token is required. The key stays server-side.
 
+Copy [.env.example](.env.example) to **.env** in the repository root and paste
+your key after `OPENAI_API_KEY=`. The local app reads this file at startup;
+restart after changing it. On Vercel, import the private file through
+**Project → Settings → Environment Variables**, select Production, save, and
+redeploy. The `.env` file is ignored by Git and must stay out of public files.
+
 Live generation on Vercel needs the Windows helper connected from Settings using
 the same OpenAI key. The helper creates a temporary, origin-specific connection
 and signs the exact generation request. Visitors without an approved helper
@@ -67,10 +73,12 @@ removed because it requires photo files on disk. Browser webcam capture remains
 available. Physical R100/200D capture and actual print output need testing on
 the event equipment; compilation and simulated equipment tests do not verify them.
 
-The private api-key.local.mjs option remains supported for local code setup.
-Copy the empty [api-key.example.mjs](api-key.example.mjs) and keep the real file
-private. A nonempty code key overrides the environment and encrypted Setup key
-at startup. Clear that code value to use a key saved in Setup. Never commit keys.
+For the portable Windows helper, put **.env** beside the helper EXE and restart
+it, or save the key in Settings. Startup key priority is a nonempty private
+api-key.local.mjs, then OPENAI_API_KEY from the process environment, then .env,
+then the encrypted Settings key. If you previously used
+[api-key.example.mjs](api-key.example.mjs), clear the private code value to use
+.env. Never commit keys.
 
 ## Settings, references and display
 

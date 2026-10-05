@@ -19,6 +19,13 @@ Open Settings on the welcome screen. On the Windows helper, configure:
 - your OpenAI API key, saved with Windows user encryption
 - generation mode, model, prompt and print frame
 
+API KEY FILE
+Copy .env.example to .env beside the helper EXE (or in the source-code root).
+Paste your key after OPENAI_API_KEY=, save, and restart the helper/app.
+The only required value is OPENAI_API_KEY. Keep .env private.
+A nonempty api-key.local.mjs or process environment key takes priority over
+.env; .env takes priority over the encrypted key saved in Settings.
+
 Canon R100 / EOS 200D needs USB, JPEG mode and compatible licensed EDSDK.
 Close EOS Utility. Canon live video is not implemented; the capture appears
 following the six-second countdown. Browser webcam capture is also available.
@@ -26,7 +33,10 @@ Folder watching is removed because it requires photo files on disk.
 Physical camera and printer operation still require an event-hardware test.
 
 VERCEL
-Follow VERCEL-SETUP.md. Add only OPENAI_API_KEY in Vercel's server environment.
+Follow VERCEL-SETUP.md. In your Vercel project, go to Settings -> Environment
+Variables -> Import .env, select your private file, choose Production, and Save.
+Redeploy after saving. You can also enter OPENAI_API_KEY and its value manually.
+Never upload .env to GitHub or include it in public website files.
 Use the same key in Windows helper Setup. No Supabase/password/manual token.
 On the same Windows PC, open the hosted /kiosk page. In Settings, choose Connect
 Windows helper, allow the browser's local network request if asked, then verify
