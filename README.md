@@ -2,6 +2,16 @@
 
 Golf photo booth for Windows with a Vercel website and a Windows camera/printer helper. Guest flow: **Capture → Review → Generate → Display → Print / QR download**. Guests have no upload option.
 
+The interface fills the browser window and adapts to desktops, laptops, tablets
+and phones. Large screens show the scene controls and course image side by side;
+small screens stack them with touch-sized controls. Review and result screens
+keep the complete portrait visible, including the print border.
+
+Use the square **Full screen** control in the header to enter or exit full screen.
+It is available on guest, admin, display and Windows helper screens. On desktop,
+**Esc** also exits. Full screen requires browser support and a user click; when
+unavailable, the app shows a message with the browser's alternative.
+
 ## Vercel deployment
 
 Follow [VERCEL-SETUP.md](VERCEL-SETUP.md). Vercel hosts the interface and authenticated server API; Supabase stores event settings, jobs, Windows commands and private photos. OpenAI image editing runs on the server. The Windows app receives commands over outbound HTTPS for Canon capture and printing.

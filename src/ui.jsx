@@ -4,6 +4,8 @@ export function Icon({ name, size = 22, ...props }) {
     flag: <><path d="M6 22V2l14 6-14 6M2 22h12"/></>,
     camera: <><path d="M8 5l2-3h4l2 3h4a2 2 0 0 1 2 2v13H2V7a2 2 0 0 1 2-2z"/><circle cx="12" cy="12" r="4"/></>,
     external: <><path d="M14 3h7v7M21 3l-9 9M10 5H4v16h16v-6"/></>,
+    maximize: <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/>,
+    minimize: <path d="M3 8h5V3M21 8h-5V3M16 21v-5h5M8 21v-5H3"/>,
     image: <><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 6"/></>,
     chevron: <path d="m9 5 7 7-7 7"/>,
     print: <><path d="M6 8V2h12v6M6 17H2V8h20v9h-4M6 14h12v8H6zM18 11h1"/></>,

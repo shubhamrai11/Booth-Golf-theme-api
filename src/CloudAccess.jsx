@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api, post, resetApiSession } from './api';
 import { Button, Field, Icon } from './ui';
+import { FullscreenButton } from './FullscreenButton';
 import './cloud.css';
 export function CloudAccess({ attention, refresh }) {
   const [password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -9,7 +10,7 @@ export function CloudAccess({ attention, refresh }) {
     try { await api('/api/login',{method:'POST',withoutToken:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({password})}); resetApiSession();setPassword('');await refresh(); }
     catch(e) { setError(e.message); } finally { setBusy(false); }
   }
-  return <main className="cloud-access"><section className="cloud-access-card"><Icon name="flag" size={40}/><p className="cloud-eyebrow">FAIRWAY STUDIO</p><h1>{attention.loginRequired ? 'Welcome, operator.' : 'Connect your cloud booth.'}</h1><p>{attention.loginRequired ? 'Sign in to prepare the camera, printer and golf experience.' : 'Finish the secure server setup in your Vercel project, then redeploy.'}</p>
+  return <main className="cloud-access"><div className="cloud-access-tools"><FullscreenButton/></div><section className="cloud-access-card"><Icon name="flag" size={40}/><p className="cloud-eyebrow">FAIRWAY STUDIO</p><h1>{attention.loginRequired ? 'Welcome, operator.' : 'Connect your cloud booth.'}</h1><p>{attention.loginRequired ? 'Sign in to prepare the camera, printer and golf experience.' : 'Finish the secure server setup in your Vercel project, then redeploy.'}</p>
     {attention.loginRequired ? <form onSubmit={login}><Field label="Admin password"><input autoFocus type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></Field><Button disabled={busy || !password}>{busy?'Signing in…':'Open studio'}</Button></form> : <><ul className="cloud-missing">{attention.missing?.map(name=><li key={name}>{name}</li>)}</ul><p>{attention.error}</p><a className="button secondary" href="https://vercel.com/dashboard" target="_blank" rel="noreferrer">Open Vercel settings</a><p className="help">Your API key and database credentials stay in Vercel. Add the variables from the repository’s Vercel setup guide.</p><Button onClick={()=>refresh().catch(e=>setError(e.message))}>Check setup again</Button></>}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
   </section></main>;
