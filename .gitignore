@@ -1,0 +1,22 @@
+node_modules/
+data/
+dist/
+runtime/
+server-bundle.cjs
+*.exe
+.env
+api-key.local.mjs
+.env.*
+!.env.example
+*.dpapi
+*.pem
+*.key
+*.log
+*.zip
+.vercel/
+.DS_Store
+Thumbs.db
+
+# Event-specific reference photographs stay on the booth PC.
+assets/golf-reference.jpg
+assets/golf-outfit-reference.jpg
